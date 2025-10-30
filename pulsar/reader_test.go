@@ -1051,6 +1051,43 @@ func TestReaderHasNextRetryFailed(t *testing.T) {
 
 }
 
+func TestReaderHasNextWithErrReturnsError(t *testing.T) {
+	client, err := NewClient(ClientOptions{
+		URL:              serviceURL,
+		OperationTimeout: 2 * time.Second,
+	})
+	assert.Nil(t, err)
+	topic := newTopicName()
+	r, err := client.CreateReader(ReaderOptions{
+		Topic:          topic,
+		StartMessageID: EarliestMessageID(),
+	})
+	assert.Nil(t, err)
+
+	c := make(chan interface{})
+	defer close(c)
+
+	pc := r.(*reader).c.consumers[0]
+	pc.Close()
+	pc.state.Store(consumerReady)
+	pc.eventsCh = c
+
+	expectedErr := errors.New("mock broker error")
+	go func() {
+		for e := range c {
+			req, ok := e.(*getLastMsgIDRequest)
+			assert.True(t, ok, "unexpected event type")
+			req.err = expectedErr
+			close(req.doneCh)
+		}
+	}()
+
+	hasNext, err := r.HasNextWithErr()
+	assert.False(t, hasNext)
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "mock broker error")
+}
+
 func TestReaderNextReturnsOnClosedConsumer(t *testing.T) {
 	client, err := NewClient(ClientOptions{
 		URL:              serviceURL,
