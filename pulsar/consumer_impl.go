@@ -786,39 +786,45 @@ func (c *consumer) checkMsgIDPartition(msgID MessageID) error {
 	return nil
 }
 
-func (c *consumer) hasNext() bool {
+func (c *consumer) hasNext() (bool, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Make sure all paths cancel the context to avoid context leak
 
 	var wg sync.WaitGroup
 	wg.Add(len(c.consumers))
 
-	hasNext := make(chan bool)
+	type result struct {
+		hasNext bool
+		err     error
+	}
+	results := make(chan result)
+
 	for _, pc := range c.consumers {
 		go func() {
 			defer wg.Done()
-			if pc.hasNext() {
-				select {
-				case hasNext <- true:
-				case <-ctx.Done():
-				}
+			hasNext, err := pc.hasNext()
+			select {
+			case results <- result{hasNext: hasNext, err: err}:
+			case <-ctx.Done():
 			}
 		}()
 	}
 
 	go func() {
 		wg.Wait()
-		close(hasNext) // Close the channel after all goroutines have finished
+		close(results) // Close the channel after all goroutines have finished
 	}()
 
-	// Wait for either a 'true' result or for all goroutines to finish
-	for hn := range hasNext {
-		if hn {
-			return true
+	for res := range results {
+		if res.err != nil {
+			return false, res.err
+		}
+		if res.hasNext {
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 func (c *consumer) setLastDequeuedMsg(msgID MessageID) error {

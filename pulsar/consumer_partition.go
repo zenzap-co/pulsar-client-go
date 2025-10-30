@@ -2281,7 +2281,7 @@ func (pc *partitionConsumer) discardCorruptedMessage(msgID *pb.MessageIdData,
 	pc.availablePermits.inc()
 }
 
-func (pc *partitionConsumer) hasNext() bool {
+func (pc *partitionConsumer) hasNext() (bool, error) {
 
 	// If a seek by time has been performed, then the `startMessageId` becomes irrelevant.
 	// We need to compare `markDeletePosition` and `lastMessageId`,
@@ -2291,27 +2291,27 @@ func (pc *partitionConsumer) hasNext() bool {
 		if err != nil {
 			pc.log.WithError(err).Error("Failed to get last message id")
 			pc.hasSoughtByTime.CompareAndSwap(false, true)
-			return false
+			return false, err
 		}
 		pc.lastMessageInBroker = res.msgID
 		pc.startMessageID.set(res.markDeletePosition)
 		// We only care about comparing ledger ids and entry ids as mark delete position
 		// doesn't have other ids such as batch index
 		compareResult := pc.lastMessageInBroker.messageID.compareLedgerAndEntryID(pc.startMessageID.get().messageID)
-		return compareResult > 0 || (pc.options.startMessageIDInclusive && compareResult == 0)
+		return compareResult > 0 || (pc.options.startMessageIDInclusive && compareResult == 0), nil
 	}
 
 	if pc.lastMessageInBroker != nil && pc.hasMoreMessages() {
-		return true
+		return true, nil
 	}
 
 	lastMsgID, err := pc.getLastMessageID()
 	if err != nil {
-		return false
+		return false, err
 	}
 	pc.lastMessageInBroker = lastMsgID
 
-	return pc.hasMoreMessages()
+	return pc.hasMoreMessages(), nil
 }
 
 func (pc *partitionConsumer) hasMoreMessages() bool {

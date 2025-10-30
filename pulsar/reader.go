@@ -117,6 +117,10 @@ type Reader interface {
 	// If there is any errors, it will return false
 	HasNext() bool
 
+	// HasNextWithErr checks if there is any message available to read from the current position
+	// Returns true if messages are available, and any error encountered
+	HasNextWithErr() (bool, error)
+
 	// Close the reader and stop the broker to push more messages
 	Close()
 

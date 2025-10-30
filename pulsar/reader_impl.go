@@ -187,6 +187,11 @@ func (r *reader) Next(ctx context.Context) (Message, error) {
 }
 
 func (r *reader) HasNext() bool {
+	hasNext, _ := r.c.hasNext()
+	return hasNext
+}
+
+func (r *reader) HasNextWithErr() (bool, error) {
 	return r.c.hasNext()
 }
 
