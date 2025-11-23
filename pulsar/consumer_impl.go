@@ -794,7 +794,7 @@ func (c *consumer) hasNext() (bool, error) {
 		hasNext bool
 		err     error
 	}
-	results := make(chan result)
+	results := make(chan result, len(c.consumers))
 
 	var wg sync.WaitGroup
 	for _, pc := range c.consumers {
