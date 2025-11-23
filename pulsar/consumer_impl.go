@@ -790,16 +790,15 @@ func (c *consumer) hasNext() (bool, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Make sure all paths cancel the context to avoid context leak
 
-	var wg sync.WaitGroup
-	wg.Add(len(c.consumers))
-
 	type result struct {
 		hasNext bool
 		err     error
 	}
 	results := make(chan result)
 
+	var wg sync.WaitGroup
 	for _, pc := range c.consumers {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			hasNext, err := pc.hasNext()
@@ -809,11 +808,8 @@ func (c *consumer) hasNext() (bool, error) {
 			}
 		}()
 	}
-
-	go func() {
-		wg.Wait()
-		close(results) // Close the channel after all goroutines have finished
-	}()
+	wg.Wait()
+	close(results) // Close the channel after all goroutines have finished
 
 	for res := range results {
 		if res.err != nil {
